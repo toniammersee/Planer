@@ -1,6 +1,8 @@
 # Planer
 
-Eine schlanke Planungs-App für **Schule, Arbeit, Lernen, Sport und Sonstiges** – ohne Anmeldung, ohne Server. Alle Daten bleiben auf deinem Gerät (im Browser gespeichert).
+Eine schlanke Planungs-App für **Schule, Arbeit, Lernen, Sport und Sonstiges** – installierbar auf Handy, Tablet und PC, mit **Synchronisierung über dein Google Drive**.
+
+👉 **Einrichtung Schritt für Schritt: [ANLEITUNG-DRIVE.md](ANLEITUNG-DRIVE.md)**
 
 ## Funktionen
 
@@ -12,8 +14,9 @@ Eine schlanke Planungs-App für **Schule, Arbeit, Lernen, Sport und Sonstiges** 
 - **Wiederholungen**: täglich, werktags (Mo–Fr) oder wöchentlich – jeder Tag wird einzeln abgehakt
 - Nach Kategorie filtern
 - Hell- und Dunkelmodus
-- Export/Import als JSON (Backup oder Umzug auf ein anderes Gerät)
-- Auf dem Handy installierbar und offline nutzbar (PWA)
+- **Google-Drive-Sync:** Daten liegen als `Planer-Daten.json` in deinem Drive und sind auf allen Geräten gleich
+- Export/Import als JSON (zusätzliches Backup)
+- Als App installierbar (Android, iPhone, PC) und offline nutzbar (PWA)
 - Tastenkürzel: `n` = neuer Eintrag
 
 ## Starten
@@ -25,6 +28,10 @@ python3 -m http.server 8000
 # dann http://localhost:8000 öffnen
 ```
 
-Oder kostenlos mit **GitHub Pages** veröffentlichen: Repository → *Settings* → *Pages* → Branch auswählen → Speichern. Danach die Seite auf dem Handy öffnen und „Zum Startbildschirm hinzufügen“ wählen.
+Für die Nutzung als App mit Drive-Sync: siehe [ANLEITUNG-DRIVE.md](ANLEITUNG-DRIVE.md) (GitHub Pages + Google Client-ID).
 
-> Hinweis: Die Daten liegen im Browser des jeweiligen Geräts. Nutze „Daten exportieren“ im Menü (⋯) für Backups.
+## Tests
+
+```bash
+node --test tests/*.test.js
+```

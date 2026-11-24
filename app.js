@@ -35,11 +35,19 @@ function safeSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Speicher nicht verfügbar */ }
 }
 
-let tasks = safeGet(STORAGE_KEY, []);
+const stored = safeGet(STORAGE_KEY, []);
+let tasks = Array.isArray(stored) ? stored : (stored.tasks || []);
+let deleted = Array.isArray(stored) ? {} : (stored.deleted || {});
 let prefs = Object.assign({ view: 'today', filter: 'all', theme: null }, safeGet(PREFS_KEY, {}));
 let weekOffset = 0;
 
-function save() { safeSet(STORAGE_KEY, tasks); }
+function save() {
+  safeSet(STORAGE_KEY, { tasks, deleted });
+  Drive.schedule();
+}
+function touch(t) { t.updated = Date.now(); return t; }
+function markDeleted(t) { deleted[t.id] = Date.now(); }
+function unmarkDeleted(t) { delete deleted[t.id]; touch(t); }
 function savePrefs() { safeSet(PREFS_KEY, prefs); }
 
 /* ---------- Date helpers (lokale Zeit, Format YYYY-MM-DD) ---------- */
@@ -393,9 +401,10 @@ function fmtHours(min) {
 function toggle(t, key) {
   const nowDone = !isDone(t, key);
   setDone(t, key, nowDone);
+  touch(t);
   save();
   render();
-  if (nowDone) toast('Erledigt ✓', 'Rückgängig', () => { setDone(t, key, false); save(); render(); });
+  if (nowDone) toast('Erledigt ✓', 'Rückgängig', () => { setDone(t, key, false); touch(t); save(); render(); });
 }
 
 let toastTimer;
@@ -473,10 +482,11 @@ form.addEventListener('submit', e => {
     Object.assign(t, data);
     if (wasRecurring && data.repeat === 'none') { t.done = false; delete t.doneDates; }
     if (!wasRecurring && data.repeat !== 'none') { t.doneDates = []; delete t.done; }
+    touch(t);
     toast('Gespeichert');
   } else {
     tasks.push({
-      id: uid(), created: Date.now(), ...data,
+      id: uid(), created: Date.now(), updated: Date.now(), ...data,
       ...(data.repeat === 'none' ? { done: false } : { doneDates: [] }),
     });
     toast('Hinzugefügt');
@@ -493,10 +503,11 @@ $('#deleteBtn').addEventListener('click', () => {
   const idx = tasks.findIndex(x => x.id === editingId);
   if (idx < 0) return;
   const [removed] = tasks.splice(idx, 1);
+  markDeleted(removed);
   save();
   dialog.close();
   render();
-  toast('Gelöscht', 'Rückgängig', () => { tasks.splice(idx, 0, removed); save(); render(); });
+  toast('Gelöscht', 'Rückgängig', () => { unmarkDeleted(removed); tasks.splice(idx, 0, removed); save(); render(); });
 });
 dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
 
@@ -524,10 +535,12 @@ $('#importInput').addEventListener('change', async e => {
     const data = JSON.parse(await file.text());
     const list = Array.isArray(data) ? data : data.tasks;
     if (!Array.isArray(list)) throw new Error('format');
-    const valid = list.filter(t => t && typeof t.title === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date));
-    const byId = new Map(tasks.map(t => [t.id, t]));
-    for (const t of valid) byId.set(t.id || uid(), { id: t.id || uid(), ...t });
-    tasks = [...byId.values()];
+    const valid = list
+      .filter(t => t && typeof t.title === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date))
+      .map(t => ({ ...t, id: typeof t.id === 'string' ? t.id : uid(), updated: Date.now() }));
+    for (const t of valid) delete deleted[t.id];
+    const merged = SyncCore.merge({ tasks, deleted }, { tasks: valid, deleted: {} });
+    tasks = merged.tasks; deleted = merged.deleted;
     save(); render();
     toast(`${valid.length} Einträge importiert`);
   } catch {
@@ -537,10 +550,14 @@ $('#importInput').addEventListener('change', async e => {
 
 $('#clearDoneBtn').addEventListener('click', () => {
   const before = tasks.slice();
-  tasks = tasks.filter(t => !(t.repeat === 'none' && t.done));
-  const n = before.length - tasks.length;
+  const removed = tasks.filter(t => t.repeat === 'none' && t.done);
+  tasks = tasks.filter(t => !removed.includes(t));
+  removed.forEach(markDeleted);
+  const n = removed.length;
   save(); render(); menu.classList.add('hidden');
-  toast(`${n} erledigte gelöscht`, n ? 'Rückgängig' : null, () => { tasks = before; save(); render(); });
+  toast(`${n} erledigte gelöscht`, n ? 'Rückgängig' : null, () => {
+    removed.forEach(unmarkDeleted); tasks = before; save(); render();
+  });
 });
 
 function applyTheme() {
@@ -553,6 +570,120 @@ $('#themeBtn').addEventListener('click', () => {
   prefs.theme = current === 'dark' ? 'light' : 'dark';
   savePrefs(); applyTheme(); menu.classList.add('hidden');
 });
+
+/* ---------- Google-Drive-Sync ---------- */
+
+const SYNC_LABEL = {
+  off: ['☁', 'Drive'],
+  disconnected: ['☁', 'Drive'],
+  login: ['☁', 'Verbinden'],
+  syncing: ['⟳', 'Sync …'],
+  ok: ['☁', '✓'],
+  offline: ['☁', 'Offline'],
+  error: ['☁', 'Fehler'],
+};
+const syncDialog = $('#syncDialog');
+
+function fmtAgo(ts) {
+  if (!ts) return 'noch nie';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return 'gerade eben';
+  if (s < 3600) return `vor ${Math.round(s / 60)} min`;
+  return new Date(ts).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function updateSyncUi() {
+  const st = Drive.state;
+  const btn = $('#syncBtn');
+  const [icon, label] = SYNC_LABEL[st] || SYNC_LABEL.off;
+  btn.dataset.state = st;
+  btn.querySelector('.sync-icon').textContent = icon;
+  btn.querySelector('.sync-label').textContent = label;
+  btn.title = {
+    off: 'Google Drive einrichten',
+    disconnected: 'Mit Google Drive verbinden',
+    login: 'Anmeldung abgelaufen – tippen, um wieder zu verbinden',
+    syncing: 'Wird synchronisiert …',
+    ok: `Synchronisiert ${fmtAgo(Drive.lastSync)} – tippen zum Abgleichen`,
+    offline: 'Offline – wird abgeglichen, sobald du wieder online bist',
+    error: 'Fehler: ' + Drive.detail,
+  }[st] || 'Google Drive';
+
+  const box = $('#syncStatus');
+  const connected = Drive.isEnabled();
+  const lines = {
+    off: 'Noch nicht eingerichtet. Trage unten deine Google Client-ID ein und tippe auf „Mit Google verbinden“.',
+    disconnected: 'Nicht verbunden. Deine Einträge sind nur auf diesem Gerät gespeichert.',
+    login: 'Verbunden, aber die Anmeldung ist abgelaufen (Google erlaubt im Browser max. 1 Stunde). Tippe auf „Jetzt synchronisieren“.',
+    syncing: 'Wird synchronisiert …',
+    ok: `✅ Verbunden – zuletzt synchronisiert ${fmtAgo(Drive.lastSync)}.`,
+    offline: 'Offline – Änderungen werden hochgeladen, sobald du wieder online bist.',
+    error: '⚠️ ' + Drive.detail,
+  };
+  box.textContent = lines[st] || '';
+  box.dataset.state = st;
+  if (connected && Drive.fileId && st === 'ok') {
+    box.append(' ', el('a', {
+      href: `https://drive.google.com/file/d/${encodeURIComponent(Drive.fileId)}/view`,
+      target: '_blank', rel: 'noopener',
+    }, 'Datei im Drive ansehen'));
+  }
+  $('#driveConnectBtn').textContent = connected ? 'Jetzt synchronisieren' : 'Mit Google verbinden';
+  $('#driveDisconnectBtn').classList.toggle('hidden', !connected);
+  $('#clientIdBox').open = !Drive.clientId();
+}
+
+function initSync() {
+  Drive.init({
+    getData: () => ({ tasks, deleted }),
+    setData: data => {
+      tasks = data.tasks;
+      deleted = data.deleted;
+      safeSet(STORAGE_KEY, { tasks, deleted });
+      if (!dialog.open) render();
+    },
+    onState: updateSyncUi,
+  });
+  updateSyncUi();
+  setInterval(updateSyncUi, 30_000);
+}
+
+function openSyncDialog() {
+  $('#clientIdInput').value = Drive.clientId();
+  updateSyncUi();
+  syncDialog.showModal();
+}
+
+async function connectDrive() {
+  const id = $('#clientIdInput').value.trim();
+  if (syncDialog.open) {
+    if (!id) { $('#clientIdBox').open = true; $('#clientIdInput').focus(); toast('Bitte Client-ID eintragen'); return; }
+    if (id !== Drive.clientId()) Drive.setClientId(id);
+  }
+  try {
+    await Drive.connect();
+    if (Drive.state === 'ok') toast('Mit Google Drive synchronisiert ✓');
+  } catch (e) {
+    toast(e.message || 'Verbindung fehlgeschlagen');
+  }
+}
+
+$('#syncBtn').addEventListener('click', () => {
+  const st = Drive.state;
+  if (st === 'login') connectDrive();
+  else if (st === 'ok' || st === 'error' || st === 'offline') Drive.sync();
+  else openSyncDialog();
+});
+$('#syncBtn').addEventListener('contextmenu', e => { e.preventDefault(); openSyncDialog(); });
+$('#driveMenuBtn').addEventListener('click', () => { menu.classList.add('hidden'); openSyncDialog(); });
+$('#driveConnectBtn').addEventListener('click', connectDrive);
+$('#syncCloseBtn').addEventListener('click', () => syncDialog.close());
+$('#driveDisconnectBtn').addEventListener('click', () => {
+  Drive.disconnect();
+  toast('Von Google Drive getrennt – Daten bleiben auf diesem Gerät');
+});
+syncDialog.addEventListener('click', e => { if (e.target === syncDialog) syncDialog.close(); });
+dialog.addEventListener('close', () => render());
 
 /* ---------- Navigation ---------- */
 
@@ -573,6 +704,12 @@ document.addEventListener('keydown', e => {
 if (!['today', 'week', 'all', 'stats'].includes(prefs.view)) prefs.view = 'today';
 applyTheme();
 render();
+initSync();
+
+if (new URLSearchParams(location.search).has('neu')) {
+  history.replaceState(null, '', location.pathname);
+  openEditor(null);
+}
 
 // Um Mitternacht / beim Zurückkehren neu zeichnen, damit "Heute" stimmt
 let lastDay = todayKey();

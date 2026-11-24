@@ -301,3 +301,27 @@ fieldset.cat-pick legend { font-size: .85rem; color: var(--muted); font-weight: 
 }
 .toast button { background: transparent; border: 0; color: var(--accent); font-weight: 700; padding: 0; }
 :root[data-theme="dark"] .toast button { color: #4f46e5; }
+
+/* ---------- Sync ---------- */
+.sync-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  height: 36px; padding: 0 12px; border-radius: 10px; font-size: .88rem; font-weight: 600; white-space: nowrap;
+}
+.sync-pill .sync-icon { font-size: 1.05rem; line-height: 1; }
+.sync-pill[data-state="ok"] { color: var(--c-sport); }
+.sync-pill[data-state="login"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.sync-pill[data-state="error"] { color: var(--danger); border-color: var(--danger); }
+.sync-pill[data-state="syncing"] .sync-icon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 560px) { .sync-pill { margin-left: auto; } .sync-pill + .icon-btn { margin-left: 0; } }
+
+dialog .hint { margin: 0; color: var(--muted); font-size: .9rem; }
+.sync-status {
+  background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: .92rem;
+}
+.sync-status[data-state="error"] { color: var(--danger); }
+.sync-status a { color: var(--accent); font-weight: 600; }
+dialog details summary { cursor: pointer; color: var(--muted); font-size: .9rem; font-weight: 600; }
+dialog details[open] summary { margin-bottom: 8px; }
+dialog details .hint { margin-bottom: 8px; }

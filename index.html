@@ -8,7 +8,11 @@
   <title>Planer</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Planer">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,10 +27,14 @@
       <button class="tab" data-view="all" role="tab">Alle</button>
       <button class="tab" data-view="stats" role="tab">Statistik</button>
     </nav>
+    <button class="sync-pill" id="syncBtn" data-state="off" title="Google Drive">
+      <span class="sync-icon" aria-hidden="true">☁</span><span class="sync-label">Drive</span>
+    </button>
     <button class="icon-btn" id="menuBtn" aria-label="Menü" title="Daten sichern / laden">⋯</button>
   </header>
 
   <div class="menu hidden" id="menu">
+    <button id="driveMenuBtn">☁ Google Drive …</button>
     <button id="exportBtn">Daten exportieren (JSON)</button>
     <label class="menu-item">Daten importieren
       <input type="file" id="importInput" accept="application/json" hidden>
@@ -97,8 +105,37 @@
     </form>
   </dialog>
 
+  <dialog id="syncDialog">
+    <form method="dialog" id="syncForm">
+      <h2>☁ Google Drive</h2>
+      <p class="hint">Deine Einträge werden als Datei <b>Planer-Daten.json</b> in deinem Google Drive gespeichert
+        und auf allen Geräten abgeglichen, auf denen du dich verbindest.
+        Die App sieht nur diese eine Datei, nicht den Rest deines Drives.</p>
+
+      <div class="sync-status" id="syncStatus"></div>
+
+      <details id="clientIdBox">
+        <summary>Google Client-ID</summary>
+        <p class="hint">Einmalig nötig – wie du sie bekommst, steht in <b>ANLEITUNG-DRIVE.md</b> im Repository.</p>
+        <label>Client-ID
+          <input name="clientId" id="clientIdInput" placeholder="1234…apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+        </label>
+      </details>
+
+      <div class="dialog-actions">
+        <button type="button" class="danger ghost hidden" id="driveDisconnectBtn">Trennen</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="syncCloseBtn">Schließen</button>
+        <button type="button" class="primary" id="driveConnectBtn">Mit Google verbinden</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast hidden" id="toast" role="status"></div>
 
+  <script src="config.js"></script>
+  <script src="sync-core.js"></script>
+  <script src="drive.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
