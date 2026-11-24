@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="Planer für Schule, Arbeit, Lernen, Sport und Sonstiges">
+  <title>Planer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icon.svg" alt="" width="28" height="28">
+      <h1>Planer</h1>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="today" role="tab">Heute</button>
+      <button class="tab" data-view="week" role="tab">Woche</button>
+      <button class="tab" data-view="all" role="tab">Alle</button>
+      <button class="tab" data-view="stats" role="tab">Statistik</button>
+    </nav>
+    <button class="icon-btn" id="menuBtn" aria-label="Menü" title="Daten sichern / laden">⋯</button>
+  </header>
+
+  <div class="menu hidden" id="menu">
+    <button id="exportBtn">Daten exportieren (JSON)</button>
+    <label class="menu-item">Daten importieren
+      <input type="file" id="importInput" accept="application/json" hidden>
+    </label>
+    <button id="themeBtn">Hell / Dunkel umschalten</button>
+    <button id="clearDoneBtn" class="danger">Erledigte Einzel-Aufgaben löschen</button>
+  </div>
+
+  <section class="filters" id="filters" aria-label="Kategorien filtern"></section>
+
+  <main id="main"></main>
+
+  <button class="fab" id="addBtn" aria-label="Neuer Eintrag">+</button>
+
+  <dialog id="editor">
+    <form method="dialog" id="editorForm">
+      <h2 id="editorTitle">Neuer Eintrag</h2>
+
+      <label>Titel
+        <input name="title" required maxlength="120" placeholder="z. B. Mathe-Hausaufgaben" autocomplete="off">
+      </label>
+
+      <fieldset class="cat-pick">
+        <legend>Kategorie</legend>
+        <div id="catPick"></div>
+      </fieldset>
+
+      <div class="row">
+        <label>Datum
+          <input type="date" name="date" required>
+        </label>
+        <label>Von
+          <input type="time" name="start">
+        </label>
+        <label>Bis
+          <input type="time" name="end">
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Priorität
+          <select name="priority">
+            <option value="low">Niedrig</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">Hoch</option>
+          </select>
+        </label>
+        <label>Wiederholen
+          <select name="repeat">
+            <option value="none">Nie</option>
+            <option value="daily">Täglich</option>
+            <option value="weekdays">Werktags (Mo–Fr)</option>
+            <option value="weekly">Wöchentlich</option>
+          </select>
+        </label>
+      </div>
+
+      <label>Notizen
+        <textarea name="notes" rows="3" placeholder="Details, Raum, Seiten, Übungen …"></textarea>
+      </label>
+
+      <div class="dialog-actions">
+        <button type="button" class="danger ghost" id="deleteBtn">Löschen</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="cancelBtn">Abbrechen</button>
+        <button type="submit" class="primary" id="saveBtn" value="save">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
